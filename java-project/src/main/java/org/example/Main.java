@@ -9,7 +9,7 @@ public class Main {
 
     public static void main(String[] args) {
         try {
-            TaskRoomSensorTelemetry.run(false);
+            TaskKMeans.run(false);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

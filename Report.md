@@ -75,7 +75,7 @@ In all aggregation jobs, Spark executed a typical pipeline:
    Scan CSV → WholeStageCodegen → Exchange → HashAggregate
 
 The Exchange step marks where data shuffling occurred — Spark redistributed records across partitions so that all rows with the same grouping key (e.g., month) were processed on the same executor.
-This was required for the groupBy and agg operations in both the hourly-average and max/min-delta computations.
+This was required for the groupBy and agg operations in both the hourly-average and max/min-deΩlta computations.
 
 During the correlation computations (corr at TaskRoomSensorTelemetry.java:107), Spark also performed shuffles, visible through AQEShuffleRead nodes in the DAG visualization.
 These occurred because statistical functions such as stat.corr require data from multiple partitions to be combined before computing global correlations.
@@ -84,7 +84,7 @@ These occurred because statistical functions such as stat.corr require data from
 2. You had to manually partition the data. Why was this essential? Which feature of the dataset did you use to partition and why?(0.5pt)
    
 Manual partitioning was essential to optimize performance and reduce shuffle overhead.
-By explicitly partitioning the dataset based on temporal attributes—primarily the month column—Spark ensured that all records from the same month were placed within the same partition.
+By explicitly partitioning the dataset based on temporal attributes—primarily thΩe month column—Spark ensured that all records from the same month were placed within the same partition.
 This allowed each executor to compute intermediate aggregates (e.g., hourly averages or monthly deltas) locally, minimizing cross-partition data transfers.
 Without this partitioning, Spark would have needed to shuffle much larger portions of the dataset for every groupBy operation, resulting in higher latency and inefficient resource usage.
 
@@ -94,5 +94,10 @@ Without this partitioning, Spark would have needed to shuffle much larger portio
 
 1. Explain how the K-Means program you have implemented, specifically the centroid estimation and recalculation, is parallelized by Spark (0.5pt)
 
+The K-Means algorithm was parallelized using Spark’s RDD model.
+In each iteration, data points were assigned to the nearest centroid using a parallel mapToPair() operation (E-step).
+Centroids were then recalculated with groupByKey() and mapValues() (M-step), which triggered a shuffle to aggregate points per cluster across partitions.
+The current centroids were broadcast to all executors, allowing each node to compute locally without redundant data transfers.
+Thus, Spark parallelized both assignment and centroid recomputation across executors, performing one distributed job per iteration.
 
 ## Declarations (if any)
