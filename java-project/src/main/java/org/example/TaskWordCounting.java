@@ -19,16 +19,25 @@ public class TaskWordCounting {
     {
         @Override
         public Iterator<String> call(String s) {
-            //You need remove punctuations from the string, convert to lower case
-            //and then split it by whitespace. Then put all strings that are some
-            //sequence of alphanumeric characters to list and return the list iterator
-
-            return null; //Of course, you dont return null, but the iterator.
+            if (s == null) return Collections.emptyIterator();
+            // Replace any non-alphanumeric character with a space, lowercase, then split on whitespace
+            String cleaned = s.toLowerCase().replaceAll("[^a-z0-9]+", " ").trim();
+            if (cleaned.isEmpty()) return Collections.emptyIterator();
+            String[] tokens = cleaned.split("\\s+");
+            List<String> words = new ArrayList<>();
+            for (String t : tokens) {
+                if (!t.isEmpty()) {
+                    words.add(t);
+                }
+            }
+            return words.iterator();
         }
 
     }
 
     public static void run(boolean local) throws IOException {
+
+        long start = System.currentTimeMillis();
 
         LOGGER.info("Starting the task");
 
@@ -43,7 +52,7 @@ public class TaskWordCounting {
         Date t0 = new Date(); //Mark the start timestamp
 
         if(local){
-            sparkConf = new SparkConf().setAppName(applicationName).setMaster("local[*]").set("spark.executor.instances", "1").set("spark.executor.instances", "10") .set("spark.executor.memory", "4g");
+            sparkConf = new SparkConf().setAppName(applicationName).setMaster("local[8]").set("spark.executor.instances", "1").set("spark.executor.instances", "10") .set("spark.executor.memory", "4g");
         }else {
             datasetFilePath = hdfsDatasetPath + datasetFileName;
             sparkConf = new SparkConf().setAppName(applicationName).setMaster(sparkMaster);
@@ -58,7 +67,7 @@ public class TaskWordCounting {
 
         //Step-A: using the available textFile, create a flat map of words by calling the WordMapper.
         LOGGER.info("Flat mapping to create word list");
-
+        JavaRDD<String> words = textFile.flatMap(new WordMapper());
 
         //-------------------------------------------------------------------------------------------
         Date t1 = new Date();
@@ -67,7 +76,7 @@ public class TaskWordCounting {
 
         //Step B: Now invoke a mapping function that will create key value-pair for each word in the list
         LOGGER.info("Mapping function");
-
+        JavaPairRDD<String, Integer> pairs = words.mapToPair(w -> new Tuple2<>(w, 1));
 
         //-------------------------------------------------------------------------------------------
         Date t2 = new Date();
@@ -75,7 +84,7 @@ public class TaskWordCounting {
 
         //Step C: Invoke a Reduce function that will sum up the values (against each key)
         LOGGER.info("Reducing function");
-
+        JavaPairRDD<String, Integer> counts = pairs.reduceByKey(Integer::sum);
 
         //-------------------------------------------------------------------------------------------
         Date t3 = new Date();
@@ -83,7 +92,13 @@ public class TaskWordCounting {
 
         //Step D: Finally, output the counts for each word
         LOGGER.info("Collecting to driver");
+        List<Tuple2<String, Integer>> output = counts.collect();
+        LOGGER.info("Unique words: {}", output.size());
+        for (int i = 0; i < Math.min(20, output.size()); i++) {
+            Tuple2<String, Integer> t = output.get(i);
+            LOGGER.info("word='{}' count={}", t._1(), t._2());
 
+        }
 
         //-------------------------------------------------------------------------------------------
         Date t4 = new Date();
@@ -93,6 +108,9 @@ public class TaskWordCounting {
         if(!local) {
             //counts.repartition(1).saveAsTextFile("hdfs://namenode:9000/output/counts.txt");
         }
+
+        long end = System.currentTimeMillis();
+        System.out.println("Total execution time: " + (end - start) + " ms");
         sparkContext.stop();
         sparkContext.close();
     }
