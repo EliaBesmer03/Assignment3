@@ -2,7 +2,8 @@
 
 ## Team Members
 
-Please list the members here
+Leon Schwendener
+Elia Besmer
 
 ## Responses to questions posed in the assignment
 
